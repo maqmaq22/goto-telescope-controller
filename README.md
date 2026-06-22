@@ -19,10 +19,10 @@ Kompletny system sterowania montażem teleskopu GoTo oparty na Raspberry Pi i si
 * **Wizja:** Kamera USB
 
 ## Autorzy
-* ** Michał Makowski (@maqmaq22)
-* ** Dawid Mańskowski
-* ** Bartosz Majewski
-* ** Michał Makowski
+* Michał Makowski (@maqmaq22)
+* Dawid Mańskowski
+* Bartosz Majewski
+* Mateusz Osełkowski
 
 
 ## 🚀 Uruchomienie projektu
