@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teleskop Pilot</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+body{background:#1a1a1a;color:#e0e0e0;font-family:sans-serif;margin:0;padding:10px;text-align:center}h2{margin:10px 0 15px}.preview-wrap{position:relative;display:inline-block;width:100%;max-width:640px}.preview{width:100%;border-radius:8px;border:2px solid #333;background:#111}.status-box{background:#333;padding:12px;margin:12px auto;border-radius:8px;font-size:1.1em;color:#00ff88;max-width:700px}.current-box{margin-bottom:10px;font-size:1em;color:#bdbdbd}.mode-select,.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px auto 0;max-width:700px}button,select,input{padding:14px;font-size:1em;border:none;border-radius:8px;background:#444;color:white}button{cursor:pointer;transition:.15s;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation}button:active{background:#666;transform:scale(.98)}button:disabled{opacity:.45;cursor:not-allowed;transform:none}select,input{width:100%;box-sizing:border-box;background:#333;border:1px solid #555}.btn-stop{background:#9b2226;font-weight:bold}.btn-action{background:#225588}.btn-polar{background:#2a6f3e}.btn-home{background:#7a4b00}.btn-mode{background:#5a189a}.btn-calib{background:#006466}.btn-clear{background:#6a040f}.section{max-width:700px;margin:20px auto 0;padding:14px;background:#262626;border-radius:10px}.section-title{font-size:1.1em;font-weight:bold;color:#00ff88;margin-bottom:10px}.arrows{display:grid;grid-template-columns:80px 80px 80px;grid-template-rows:80px 80px;justify-content:center;gap:10px}.arrow-up{grid-column:2;grid-row:1}.arrow-left{grid-column:1;grid-row:2}.arrow-down{grid-column:2;grid-row:2}.arrow-right{grid-column:3;grid-row:2}.hint{color:#aaa;font-size:.95em;margin-bottom:14px;line-height:1.35}.active-manual{outline:3px solid #00ff88}.speed-control{margin:15px auto;padding:15px;background:#333;border-radius:8px;max-width:500px}.speed-label{display:flex;justify-content:space-between;margin-bottom:10px;color:#00ff88;font-weight:bold}.slider{-webkit-appearance:none;width:100%;height:15px;border-radius:5px;background:#444;outline:none;padding:0}.slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:25px;height:25px;border-radius:50%;background:#00ff88;cursor:pointer}.slider::-moz-range-thumb{width:25px;height:25px;border-radius:50%;background:#00ff88;cursor:pointer}.battery-section{max-width:220px;margin:10px auto;padding:8px;background:#262626;border-radius:8px}.battery-label{font-size:.9em;margin-bottom:5px;color:#bdbdbd}.battery-bar-bg{width:100%;height:12px;background:#444;border-radius:6px;overflow:hidden;border:1px solid #555}.battery-bar-fill{height:100%;background:#00ff88;transition:width .5s ease-in-out,background-color .5s}.telemetry{max-width:700px;margin:12px auto;display:grid;grid-template-columns:1fr 1fr;gap:10px}.telemetry-box{background:#262626;padding:10px;border-radius:8px;font-size:1em;color:#cfcfcf}.collision-status{max-width:700px;margin:12px auto;padding:12px;border-radius:10px;background:#123524;color:#00ff88;font-weight:bold;border:2px solid #00aa66}.collision-status.alarm{background:#5a0000;color:#fff;border-color:#ff2d2d}.collision-banner{display:none;max-width:700px;margin:14px auto;padding:18px;background:#7f0000;color:#fff;border:3px solid #ff2d2d;border-radius:12px;font-size:2em;font-weight:900;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 25px rgba(255,0,0,.55);animation:blink .7s infinite alternate}@keyframes blink{from{transform:scale(1);opacity:.9}to{transform:scale(1.02);opacity:1}}.top-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:700px;margin:15px auto}.small{font-size:.9em;color:#aaa}.panel-dark{background:#101820;color:white;border-radius:14px;padding:20px;margin:30px auto 0;border:1px solid #444;max-width:700px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}@media(max-width:520px){.grid,.mode-select,.top-actions,.telemetry,.row{grid-template-columns:1fr}.arrows{grid-template-columns:70px 70px 70px;grid-template-rows:70px 70px}}
+</style>
+</head>
+<body>
+<h2>Pilot Teleskopu</h2>
+
+<div class="battery-section">
+  <div class="battery-label">Bateria: <span id="battery-value">--%</span></div>
+  <div class="battery-bar-bg"><div id="battery-fill" class="battery-bar-fill" style="width:0%"></div></div>
+</div>
+
+<div id="collisionBanner" class="collision-banner">⚠️ KOLIZJA! Zatrzymano teleskop</div>
+<div id="collisionStatus" class="collision-status">✅ Czujnik kolizji: OK</div>
+
+<div class="preview-wrap">
+  <img src="/video_feed" class="preview" alt="Podgląd kamery z celownikiem">
+</div>
+<div class="small">Celownik jest nałożony na obraz z kamery — użyj go do centrowania obiektów podczas kalibracji.</div>
+
+<div class="telemetry">
+  <div class="telemetry-box" id="voltageBox">Napięcie: -- V</div>
+  <div class="telemetry-box" id="currentBox">Prąd: -- A</div>
+</div>
+
+<div class="current-box" id="cameraInfo">Kamera: --</div>
+<div class="current-box" id="photoPathInfo">Zdjęcia: /home/goto/Pictures/Teleskop</div>
+<div class="current-box" id="currentObject">Obiekt: Brak</div>
+<div class="current-box" id="modeInfo">Tryb: automatyczny</div>
+<div class="current-box" id="manualState">Ręczne: nieaktywne</div>
+<div class="current-box" id="locationInfo">Położenie: z kodu</div>
+<div class="current-box" id="calibrationInfo">Kalibracja: brak</div>
+<div class="status-box" id="status">Status: Łączenie...</div>
+
+<div class="top-actions">
+  <button class="btn-action" onclick="send('take_photo')">📸 Zrób zdjęcie</button>
+  <button class="btn-polar" onclick="window.location.assign('/gallery')">🖼️ Galeria zdjęć</button>
+</div>
+
+<div class="mode-select">
+  <button id="btn-mode-auto" class="btn-mode" onclick="setMode('auto')">Tryb automatyczny</button>
+  <button id="btn-mode-manual" class="btn-mode" onclick="setMode('manual')">Tryb ręczny / kalibracja</button>
+</div>
+
+<div id="autoUI" class="section">
+  <div class="section-title">Śledzenie automatyczne / GoTo</div>
+  <div class="hint">Wybierz obiekt z listy. Prędkość automatyczna reguluje szybkość dojazdu do obiektu i korekt podczas śledzenia.</div>
+
+  <div class="speed-control">
+    <div class="speed-label"><span>Prędkość automatyczna:</span><span id="auto-speed-val">50%</span></div>
+    <input type="range" min="1" max="100" value="50" class="slider" id="auto-speed-slider">
+  </div>
+
+  <select id="trackObjectSelect"></select>
+  <div class="grid">
+    <button class="btn-action" onclick="trackSelected()">Śledź wybrany obiekt</button>
+    <button class="btn-stop" onclick="send('stop')">STOP</button>
+    <button class="btn-action" onclick="send('mars')">Mars</button>
+    <button class="btn-action" onclick="send('jupiter')">Jowisz</button>
+    <button class="btn-action" onclick="send('saturn')">Saturn</button>
+    <button class="btn-action" onclick="send('moon')">Księżyc</button>
+    <button class="btn-home" onclick="send('set_home')">Awaryjnie: ustaw Polarną</button>
+    <button class="btn-polar" onclick="send('go_polar')">Wróć na Polarną</button>
+  </div>
+</div>
+
+<div id="manualUI" class="section" style="display:none">
+  <div class="section-title">Sterowanie ręczne</div>
+  <div class="hint">Przytrzymaj przycisk albo strzałkę na klawiaturze. Tym sterowaniem centrujesz obiekty w celowniku kamery przed zapisaniem punktów kalibracji.</div>
+  <div class="speed-control">
+    <div class="speed-label"><span>Prędkość ręczna / kalibracja:</span><span id="speed-val">50%</span></div>
+    <input type="range" min="1" max="100" value="50" class="slider" id="speed-slider">
+  </div>
+  <div class="arrows">
+    <button id="btn-up" class="arrow-up">↑</button>
+    <button id="btn-left" class="arrow-left">←</button>
+    <button id="btn-down" class="arrow-down">↓</button>
+    <button id="btn-right" class="arrow-right">→</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Kalibracja pozycji nieba bez Polarnej</div>
+  <div class="hint">
+    1. Przełącz na tryb ręczny. 2. Wybierz znany obiekt. 3. Ręcznie wycentruj go w celowniku kamery.
+    4. Kliknij „Zapisz punkt”. Możesz zapisać 3 punkty tego samego obiektu w czasie albo różne obiekty.
+    Program zapisuje aktualne ALT/AZ obiektu i kroki silników, więc po kalibracji wie, gdzie patrzy teleskop.
+    Różne obiekty dadzą pełniejszy model GoTo, a 3x Słońce da tryb kotwicy ALT/AZ, który nadal pozwala ruszyć do Jowisza/Wenus.
+  </div>
+  <select id="calibrationObjectSelect"></select>
+  <div class="grid">
+    <button class="btn-calib" onclick="calibrateSelected()">Zapisz punkt kalibracji</button>
+    <button class="btn-polar" onclick="send('finish_calibration')">Zakończ kalibrację</button>
+    <button class="btn-clear" onclick="send('clear_calibration')">Wyczyść kalibrację</button>
+    <button class="btn-action" onclick="send('list_calibration')">Pokaż punkty</button>
+  </div>
+</div>
+
+<div class="panel-dark">
+  <h2>VISION TRACKING / OpenCV</h2>
+  <p>Kamera śledzi jasny obiekt i próbuje utrzymać go w centrum.</p>
+  <div class="grid">
+    <button onclick="visionStart()">START TRACKING</button>
+    <button onclick="visionStop()">STOP TRACKING</button>
+  </div>
+  <hr>
+  <div id="vision_status">Tracking OFF</div>
+</div>
+
+<div class="panel-dark" style="background:#111">
+  <h2>ASTRO GPS</h2>
+  <p>Wyznaczanie lokalizacji z obserwacji ALT/AZ. Po wyliczeniu możesz zastosować wynik, żeby tymczasowo zmienić położenie programu.</p>
+  <div class="row">
+    <div><label>Obiekt:</label><select id="astro_object"><option value="sun">Słońce</option><option value="saturn">Saturn</option><option value="moon">Księżyc</option></select></div>
+    <div><label>ALT:</label><input id="astro_alt" type="number" step="0.01" placeholder="wysokość np. 30"></div>
+  </div>
+  <div class="row">
+    <div><label>AZ:</label><input id="astro_az" type="number" step="0.01" placeholder="azymut np. 180"></div>
+    <div style="display:flex;align-items:end"><button style="width:100%" onclick="astroAddObservation()">Dodaj obserwację</button></div>
+  </div>
+  <div class="grid">
+    <button onclick="astroSolveGPS()">Wylicz lokalizację</button>
+    <button onclick="astroApplyGPS()">Zastosuj wynik</button>
+  </div>
+  <hr>
+  <div id="astro_result">Brak danych</div>
+</div>
+
+<script>
+const socket = io();
+const OBJECTS = [["sun","Słońce"],["moon","Księżyc"],["mercury","Merkury"],["venus","Wenus"],["mars","Mars"],["jupiter","Jowisz"],["saturn","Saturn"],["uranus","Uran"],["neptune","Neptun"],["iss","ISS"],["sirius","Syriusz"],["vega","Wega"],["capella","Kapella"],["arcturus","Arktur"],["rigel","Rigel"],["betelgeuse","Betelgeza"],["procyon","Procjon"],["aldebaran","Aldebaran"],["altair","Altair"],["deneb","Deneb"]];
+let currentMode = "auto", isTracking = false, activeManualDirection = null, lastCollisionEventId = 0, collisionTimer = null, keyboardActiveDirection = null;
+let lastAstroResult = null;
+
+const speedSlider = document.getElementById('speed-slider');
+const speedDisplay = document.getElementById('speed-val');
+const autoSpeedSlider = document.getElementById('auto-speed-slider');
+const autoSpeedDisplay = document.getElementById('auto-speed-val');
+
+function fillObjectSelects(){
+  const t = document.getElementById("trackObjectSelect");
+  const c = document.getElementById("calibrationObjectSelect");
+  OBJECTS.forEach(([v,l])=>{
+    let o1=document.createElement("option"); o1.value=v; o1.textContent=l; t.appendChild(o1);
+    let o2=document.createElement("option"); o2.value=v; o2.textContent=l; c.appendChild(o2);
+  });
+  t.value="moon"; c.value="sun";
+}
+fillObjectSelects();
+
+speedSlider.oninput = function(){
+  const v = this.value;
+  speedDisplay.innerText = v + "%";
+  socket.emit("command", {action:"set_speed", value:parseInt(v)});
+};
+
+autoSpeedSlider.oninput = function(){
+  const v = this.value;
+  autoSpeedDisplay.innerText = v + "%";
+  socket.emit("command", {action:"set_auto_speed", value:parseInt(v)});
+};
+
+function send(a){ socket.emit("command", {action:a}); }
+function trackSelected(){ socket.emit("command", {action:"track_object", object:document.getElementById("trackObjectSelect").value}); }
+function calibrateSelected(){ socket.emit("command", {action:"calibration_point", object:document.getElementById("calibrationObjectSelect").value}); }
+
+function setMode(m){
+  if(m === "manual"){
+    if(isTracking) return;
+    socket.emit("command", {action:"mode_manual"});
+  } else {
+    send("manual_stop");
+    socket.emit("command", {action:"mode_auto"});
+  }
+}
+
+function startManual(d){
+  if(currentMode !== "manual" || isTracking || activeManualDirection === d) return;
+  activeManualDirection = d;
+  highlightManual(d);
+  send("manual_start_" + d);
+}
+function stopManual(){
+  if(!activeManualDirection && !keyboardActiveDirection) return;
+  activeManualDirection = null;
+  keyboardActiveDirection = null;
+  clearManualHighlight();
+  send("manual_stop");
+}
+function bindHoldButton(id,d){
+  const b=document.getElementById(id), s=e=>{e.preventDefault();startManual(d)}, p=e=>{e.preventDefault();stopManual()};
+  b.addEventListener("mousedown",s); b.addEventListener("mouseup",p); b.addEventListener("mouseleave",p);
+  b.addEventListener("touchstart",s,{passive:false}); b.addEventListener("touchend",p,{passive:false}); b.addEventListener("touchcancel",p,{passive:false});
+}
+function clearManualHighlight(){ ["btn-up","btn-left","btn-down","btn-right"].forEach(id=>document.getElementById(id).classList.remove("active-manual")); }
+function highlightManual(d){ clearManualHighlight(); const m={up:"btn-up",down:"btn-down",left:"btn-left",right:"btn-right"}; if(m[d]) document.getElementById(m[d]).classList.add("active-manual"); }
+
+function updateModeUI(data){
+  currentMode = data.mode || "auto";
+  isTracking = !!data.czy_sledzic;
+  document.getElementById("btn-mode-manual").disabled = isTracking;
+  if(currentMode === "manual"){
+    autoUI.style.display="none"; manualUI.style.display="block"; modeInfo.innerText="Tryb: ręczny / kalibracja";
+  } else {
+    autoUI.style.display="block"; manualUI.style.display="none"; modeInfo.innerText="Tryb: automatyczny";
+    activeManualDirection=null; keyboardActiveDirection=null; clearManualHighlight();
+  }
+  if(isTracking){
+    manualState.innerText="Ręczne: zablokowane podczas śledzenia"; activeManualDirection=null; keyboardActiveDirection=null; clearManualHighlight();
+  } else if(currentMode === "manual"){
+    if(data.manual_direction){ manualState.innerText="Ręczne: ruch " + data.manual_direction; highlightManual(data.manual_direction); activeManualDirection=data.manual_direction; }
+    else { manualState.innerText="Ręczne: gotowe do centrowania"; activeManualDirection=null; clearManualHighlight(); }
+  } else { manualState.innerText="Ręczne: nieaktywne"; activeManualDirection=null; keyboardActiveDirection=null; clearManualHighlight(); }
+}
+function updateBattery(p){
+  document.getElementById("battery-value").innerText = p.toFixed(1)+"%";
+  const f=document.getElementById("battery-fill"); f.style.width=p+"%"; f.style.background=p>50?"#00ff88":p>20?"#ffb703":"#ff3b30";
+}
+function showCollisionBanner(){
+  const b=document.getElementById("collisionBanner"); b.style.display="block";
+  if(collisionTimer) clearTimeout(collisionTimer);
+  collisionTimer=setTimeout(()=>{ if(!window.lastGpioCollision) b.style.display="none"; },3000);
+}
+function updateCollisionStatus(data){
+  const box=document.getElementById("collisionStatus");
+  const pin = data.gpio_collision_pin !== undefined ? data.gpio_collision_pin : "--";
+  window.lastGpioCollision = !!(data.gpio_collision || data.collision_alert);
+  if(window.lastGpioCollision){
+    box.classList.add("alarm");
+    box.innerText = "⚠️ KOLIZJA! Czujnik GPIO " + pin + " wykrył przeszkodę. Teleskop zatrzymany / omija.";
+    document.getElementById("collisionBanner").style.display="block";
+  }else{
+    box.classList.remove("alarm");
+    box.innerText = "✅ Czujnik kolizji GPIO " + pin + ": OK";
+  }
+}
+
+window.addEventListener("mouseup",stopManual);
+window.addEventListener("touchend",stopManual,{passive:false});
+window.addEventListener("touchcancel",stopManual,{passive:false});
+window.addEventListener("blur",stopManual);
+document.addEventListener("keydown",e=>{
+  const tag=(document.activeElement&&document.activeElement.tagName)?document.activeElement.tagName.toLowerCase():"";
+  if(["input","textarea","select"].includes(tag)) return;
+  const m={ArrowUp:"down",ArrowDown:"up",ArrowLeft:"left",ArrowRight:"right"};
+  if(m[e.key]){ e.preventDefault(); if(keyboardActiveDirection!==m[e.key]){ keyboardActiveDirection=m[e.key]; startManual(m[e.key]); } }
+});
+document.addEventListener("keyup",e=>{
+  const m={ArrowUp:"down",ArrowDown:"up",ArrowLeft:"left",ArrowRight:"right"};
+  if(m[e.key] && keyboardActiveDirection===m[e.key]){ e.preventDefault(); keyboardActiveDirection=null; stopManual(); }
+});
+
+socket.on("connect",()=>status.innerText="Połączono");
+socket.on("update",data=>{
+  status.innerText = data.status || "Brak statusu";
+  currentObject.innerText = "Obiekt: " + (data.nazwa || "Brak");
+  cameraInfo.innerText = "Kamera: " + (data.camera_ok ? "OK" : "brak") + " | index: " + (data.camera_index !== undefined && data.camera_index !== null ? data.camera_index : "--");
+  if(data.battery !== undefined) updateBattery(Number(data.battery));
+  if(data.voltage_V !== undefined) voltageBox.innerText = "Napięcie: " + Number(data.voltage_V).toFixed(3) + " V";
+  if(data.current_A !== undefined) currentBox.innerText = "Prąd: " + Number(data.current_A).toFixed(3) + " A";
+  if(data.location_mode !== undefined) locationInfo.innerText = "Położenie: " + data.location_mode;
+  if(data.calibrated) calibrationInfo.innerText = "Kalibracja: aktywna | punkty: " + data.calibration_count;
+  else calibrationInfo.innerText = "Kalibracja: brak | punkty: " + (data.calibration_count || 0) + "/3";
+  if(data.auto_speed_percent !== undefined){ autoSpeedSlider.value = data.auto_speed_percent; autoSpeedDisplay.innerText = data.auto_speed_percent + "%"; }
+  updateCollisionStatus(data);
+  if(data.collision_event_id && data.collision_event_id !== lastCollisionEventId){ lastCollisionEventId=data.collision_event_id; showCollisionBanner(); }
+  updateModeUI(data);
+});
+
+bindHoldButton("btn-up","down");
+bindHoldButton("btn-left","left");
+bindHoldButton("btn-down","up");
+bindHoldButton("btn-right","right");
+
+async function visionStart(){ await fetch('/vision_tracking/start',{method:'POST'}); document.getElementById('vision_status').innerHTML='Tracking ACTIVE'; }
+async function visionStop(){ await fetch('/vision_tracking/stop',{method:'POST'}); document.getElementById('vision_status').innerHTML='Tracking STOPPED'; }
+async function visionRefresh(){
+  try{
+    const res = await fetch('/vision_tracking/status'); const data = await res.json();
+    document.getElementById('vision_status').innerHTML = '<p>Tracking: '+data.enabled+'</p><p>Object visible: '+data.state.last_seen+'</p><p>Target X: '+data.state.target_x+'</p><p>Target Y: '+data.state.target_y+'</p>';
+  }catch(e){}
+}
+setInterval(visionRefresh, 1000);
+
+async function astroAddObservation(){
+  const object=document.getElementById('astro_object').value;
+  const alt=parseFloat(document.getElementById('astro_alt').value);
+  const az=parseFloat(document.getElementById('astro_az').value);
+  const res=await fetch('/astro_gps/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({object,alt,az})});
+  const data=await res.json(); alert('Dodano obserwację. Próbek: '+data.count);
+}
+async function astroSolveGPS(){
+  const res=await fetch('/astro_gps/solve'); const data=await res.json();
+  if(!data.ok){ document.getElementById('astro_result').innerHTML='Błąd: '+data.result; return; }
+  lastAstroResult = data.result;
+  document.getElementById('astro_result').innerHTML = `<h3>Estymowana lokalizacja</h3><p>Latitude: ${data.result.latitude}</p><p>Longitude: ${data.result.longitude}</p><p>Błąd: ${data.result.error}</p><p>Próbki: ${data.result.samples}</p>`;
+}
+async function astroApplyGPS(){
+  if(!lastAstroResult){ alert('Najpierw wylicz lokalizację.'); return; }
+  const res=await fetch('/astro_gps/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({latitude:lastAstroResult.latitude, longitude:lastAstroResult.longitude})});
+  const data=await res.json();
+  alert(data.ok ? 'Zastosowano lokalizację: '+data.latitude+', '+data.longitude : 'Nie udało się zastosować lokalizacji');
+}
+</script>
+</body>
+</html>
